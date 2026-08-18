@@ -1,0 +1,361 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  SUPER_ADMIN
+  PROPERTY_ADMIN
+  SECURITY_GUARD
+  RESIDENT
+}
+
+enum DocumentType {
+  CC
+  CE
+  PASSPORT
+  NIT
+  TI
+}
+
+enum VehicleType {
+  CAR
+  MOTORCYCLE
+  BICYCLE
+  TRUCK
+  OTHER
+}
+
+enum AuthorizationStatus {
+  PENDING
+  ACTIVE
+  EXPIRED
+  REVOKED
+}
+
+enum AccessType {
+  ENTRY
+  EXIT
+}
+
+// ─── User ─────────────────────────────────────────────────────────────────────
+
+model User {
+  id         String   @id @default(cuid())
+  email      String   @unique
+  password   String
+  firstName  String
+  lastName   String
+  phone      String?
+  role       Role     @default(RESIDENT)
+  isActive   Boolean  @default(true)
+  propertyId String?
+
+  property       Property?       @relation(fields: [propertyId], references: [id])
+  resident       Resident?
+  refreshTokens  RefreshToken[]
+  auditLogs      AuditLog[]
+  accessLogsGuard AccessLog[]   @relation("GuardLogs")
+  authorizations VisitAuthorization[] @relation("AuthorizedBy")
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([email])
+  @@index([propertyId])
+  @@map("users")
+}
+
+// ─── Property ─────────────────────────────────────────────────────────────────
+
+model Property {
+  id      String  @id @default(cuid())
+  name    String
+  address String
+  city    String
+  phone   String?
+  email   String?
+  isActive Boolean @default(true)
+
+  users         User[]
+  blocks        ResidentialBlock[]
+  units         ResidentialUnit[]
+  residents     Resident[]
+  pets          Pet[]
+  vehicles      Vehicle[]
+  visitors      Visitor[]
+  authorizations VisitAuthorization[]
+  accessLogs    AccessLog[]
+  auditLogs     AuditLog[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@map("properties")
+}
+
+// ─── Residential Block ────────────────────────────────────────────────────────
+
+model ResidentialBlock {
+  id         String @id @default(cuid())
+  name       String
+  propertyId String
+
+  property Property        @relation(fields: [propertyId], references: [id])
+  units    ResidentialUnit[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([propertyId])
+  @@map("residential_blocks")
+}
+
+// ─── Residential Unit ─────────────────────────────────────────────────────────
+
+model ResidentialUnit {
+  id         String  @id @default(cuid())
+  number     String
+  floor      Int?
+  isOccupied Boolean @default(false)
+  propertyId String
+  blockId    String?
+
+  property  Property          @relation(fields: [propertyId], references: [id])
+  block     ResidentialBlock? @relation(fields: [blockId], references: [id])
+  residents Resident[]
+  authorizations VisitAuthorization[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@unique([propertyId, blockId, number])
+  @@index([propertyId])
+  @@map("residential_units")
+}
+
+// ─── Resident ─────────────────────────────────────────────────────────────────
+
+model Resident {
+  id         String    @id @default(cuid())
+  firstName  String
+  lastName   String
+  email      String
+  phone      String?
+  userId     String?   @unique
+  unitId     String
+  propertyId String
+  isActive   Boolean   @default(true)
+  startDate  DateTime  @default(now())
+  endDate    DateTime?
+
+  user       User?           @relation(fields: [userId], references: [id])
+  unit       ResidentialUnit @relation(fields: [unitId], references: [id])
+  property   Property        @relation(fields: [propertyId], references: [id])
+  pets       Pet[]
+  vehicles   Vehicle[]
+  authorizations VisitAuthorization[]
+  accessLogs AccessLog[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([propertyId])
+  @@index([unitId])
+  @@map("residents")
+}
+
+// ─── Pet ──────────────────────────────────────────────────────────────────────
+
+model Pet {
+  id                        String    @id @default(cuid())
+  name                      String
+  breed                     String?
+  color                     String?
+  type                      String?
+  size                      String?
+  weight                    Float?
+  vaccinationDate           DateTime?
+  vaccinationExpiry         DateTime?
+  healthCertificateNumber   String?
+  healthCertificateExpiry   DateTime?
+  isActive                  Boolean   @default(true)
+  residentId                String
+  propertyId                String
+
+  resident   Resident  @relation(fields: [residentId], references: [id])
+  property   Property  @relation(fields: [propertyId], references: [id])
+  accessLogs AccessLog[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([residentId])
+  @@index([propertyId])
+  @@map("pets")
+}
+
+// ─── Vehicle ──────────────────────────────────────────────────────────────────
+
+model Vehicle {
+  id         String      @id @default(cuid())
+  plate      String
+  brand      String?
+  model      String?
+  color      String?
+  type       VehicleType @default(CAR)
+  isActive   Boolean     @default(true)
+  residentId String
+  propertyId String
+
+  resident   Resident  @relation(fields: [residentId], references: [id])
+  property   Property  @relation(fields: [propertyId], references: [id])
+  accessLogs AccessLog[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@unique([propertyId, plate])
+  @@index([residentId])
+  @@index([propertyId])
+  @@map("vehicles")
+}
+
+// ─── Visitor ──────────────────────────────────────────────────────────────────
+
+model Visitor {
+  id             String       @id @default(cuid())
+  firstName      String
+  lastName       String
+  documentType   DocumentType @default(CC)
+  documentNumber String
+  phone          String?
+  propertyId     String
+
+  property       Property             @relation(fields: [propertyId], references: [id])
+  authorizations VisitAuthorization[]
+  accessLogs     AccessLog[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@unique([propertyId, documentNumber])
+  @@index([propertyId])
+  @@index([documentNumber])
+  @@map("visitors")
+}
+
+// ─── Visit Authorization ──────────────────────────────────────────────────────
+
+model VisitAuthorization {
+  id             String              @id @default(cuid())
+  visitorId      String
+  residentId     String
+  unitId         String
+  propertyId     String
+  authorizedById String
+  validFrom      DateTime
+  validUntil     DateTime
+  status         AuthorizationStatus @default(ACTIVE)
+  notes          String?
+
+  visitor      Visitor         @relation(fields: [visitorId], references: [id])
+  resident     Resident        @relation(fields: [residentId], references: [id])
+  unit         ResidentialUnit @relation(fields: [unitId], references: [id])
+  property     Property        @relation(fields: [propertyId], references: [id])
+  authorizedBy User            @relation("AuthorizedBy", fields: [authorizedById], references: [id])
+  accessLogs   AccessLog[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([propertyId])
+  @@index([visitorId])
+  @@index([status])
+  @@map("visit_authorizations")
+}
+
+// ─── Access Log ───────────────────────────────────────────────────────────────
+
+model AccessLog {
+  id              String     @id @default(cuid())
+  type            AccessType
+  propertyId      String
+  guardId         String?
+  visitorId       String?
+  residentId      String?
+  vehicleId       String?
+  petId           String?
+  authorizationId String?
+  notes           String?
+
+  property      Property            @relation(fields: [propertyId], references: [id])
+  guard         User?               @relation("GuardLogs", fields: [guardId], references: [id])
+  visitor       Visitor?            @relation(fields: [visitorId], references: [id])
+  resident      Resident?           @relation(fields: [residentId], references: [id])
+  vehicle       Vehicle?            @relation(fields: [vehicleId], references: [id])
+  pet           Pet?                @relation(fields: [petId], references: [id])
+  authorization VisitAuthorization? @relation(fields: [authorizationId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([propertyId])
+  @@index([createdAt])
+  @@index([visitorId])
+  @@map("access_logs")
+}
+
+// ─── Audit Log ────────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id         String  @id @default(cuid())
+  userId     String
+  action     String
+  entity     String
+  entityId   String
+  oldValues  Json?
+  newValues  Json?
+  propertyId String?
+  ipAddress  String?
+
+  user     User      @relation(fields: [userId], references: [id])
+  property Property? @relation(fields: [propertyId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([entity, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+// ─── Refresh Token ────────────────────────────────────────────────────────────
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  isRevoked Boolean  @default(false)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([token])
+  @@index([userId])
+  @@map("refresh_tokens")
+}
