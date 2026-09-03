@@ -29,14 +29,32 @@ export interface Configuration {
 export function configuration(): Configuration {
   const nodeEnv = process.env.NODE_ENV || 'development';
 
+  const host = process.env.DB_HOST || 'localhost';
+  const port = process.env.DB_PORT || '5432';
+  const username = process.env.DB_USERNAME || 'postgres';
+  const password = process.env.DB_PASSWORD || 'postgres';
+  const database = process.env.DB_NAME || 'janora_db';
+
+  // URL-encode username and password to handle special characters
+  const encodedUsername = encodeURIComponent(username);
+  const encodedPassword = encodeURIComponent(password);
+
+  const databaseUrl = process.env.DATABASE_URL ||
+    `postgresql://${encodedUsername}:${encodedPassword}@${host}:${port}/${database}`;
+
+  // Ensure DATABASE_URL is set for Prisma
+  if (!process.env.DATABASE_URL) {
+    process.env.DATABASE_URL = databaseUrl;
+  }
+
   return {
     database: {
-      url: process.env.DATABASE_URL || '',
-      host: process.env.DB_HOST || 'localhost',
-      port: parseInt(process.env.DB_PORT || '5432', 10),
-      username: process.env.DB_USERNAME || 'postgres',
-      password: process.env.DB_PASSWORD || 'postgres',
-      database: process.env.DB_NAME || 'janora_db',
+      url: databaseUrl,
+      host,
+      port: parseInt(port, 10),
+      username,
+      password,
+      database,
     },
     jwt: {
       secret: process.env.JWT_SECRET || 'super-secret-jwt-key-change-in-production',
