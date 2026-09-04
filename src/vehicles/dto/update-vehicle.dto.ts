@@ -1,6 +1,4 @@
-import { PartialType, OmitType } from '@nestjs/swagger';
+import { PartialType } from '@nestjs/swagger';
 import { CreateVehicleDto } from './create-vehicle.dto';
 
-export class UpdateVehicleDto extends PartialType(
-  OmitType(CreateVehicleDto, ['residentId', 'propertyId'] as const),
-) {}
+export class UpdateVehicleDto extends PartialType(CreateVehicleDto) {}

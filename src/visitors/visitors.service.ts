@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateVisitorDto } from './dto/create-visitor.dto';
 import { UpdateVisitorDto } from './dto/update-visitor.dto';
@@ -48,8 +48,14 @@ export class VisitorsService {
   }
 
   async update(id: string, dto: UpdateVisitorDto) {
-    await this.findOne(id);
-    return this.prisma.visitor.update({ where: { id }, data: dto });
+    const visitor = await this.findOne(id);
+
+    const { propertyId, ...data } = dto;
+    if (propertyId !== undefined && propertyId !== visitor.propertyId) {
+      throw new BadRequestException('No se puede cambiar la propiedad de un visitante existente');
+    }
+
+    return this.prisma.visitor.update({ where: { id }, data });
   }
 
   async remove(id: string) {

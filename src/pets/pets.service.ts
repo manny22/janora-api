@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePetDto } from './dto/create-pet.dto';
 import { UpdatePetDto } from './dto/update-pet.dto';
@@ -29,8 +29,17 @@ export class PetsService {
   }
 
   async update(id: string, dto: UpdatePetDto) {
-    await this.findOne(id);
-    return this.prisma.pet.update({ where: { id }, data: dto });
+    const pet = await this.findOne(id);
+
+    const { residentId, propertyId, ...data } = dto;
+    if (residentId !== undefined && residentId !== pet.residentId) {
+      throw new BadRequestException('No se puede cambiar el residente de una mascota existente');
+    }
+    if (propertyId !== undefined && propertyId !== pet.propertyId) {
+      throw new BadRequestException('No se puede cambiar la propiedad de una mascota existente');
+    }
+
+    return this.prisma.pet.update({ where: { id }, data });
   }
 
   async remove(id: string) {

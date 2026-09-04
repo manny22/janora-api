@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateVehicleDto } from './dto/create-vehicle.dto';
 import { UpdateVehicleDto } from './dto/update-vehicle.dto';
@@ -34,8 +34,17 @@ export class VehiclesService {
   }
 
   async update(id: string, dto: UpdateVehicleDto) {
-    await this.findOne(id);
-    return this.prisma.vehicle.update({ where: { id }, data: dto });
+    const vehicle = await this.findOne(id);
+
+    const { residentId, propertyId, ...data } = dto;
+    if (residentId !== undefined && residentId !== vehicle.residentId) {
+      throw new BadRequestException('No se puede cambiar el residente de un vehículo existente');
+    }
+    if (propertyId !== undefined && propertyId !== vehicle.propertyId) {
+      throw new BadRequestException('No se puede cambiar la propiedad de un vehículo existente');
+    }
+
+    return this.prisma.vehicle.update({ where: { id }, data });
   }
 
   async remove(id: string) {
