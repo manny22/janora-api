@@ -32,6 +32,45 @@ export class AccessLogsService {
       }
     }
 
+    if (dto.type === AccessType.EXIT) {
+      const personId = dto.residentId || dto.visitorId;
+      if (!personId) {
+        throw new BadRequestException(
+          'Se requiere residentId o visitorId para registrar una salida',
+        );
+      }
+
+      const lastEntry = await this.prisma.accessLog.findFirst({
+        where: {
+          propertyId: dto.propertyId,
+          type: AccessType.ENTRY,
+          ...(dto.residentId ? { residentId: dto.residentId } : { visitorId: dto.visitorId }),
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      if (!lastEntry) {
+        throw new BadRequestException(
+          'No hay entrada registrada para esta salida',
+        );
+      }
+
+      const hasOpenExit = await this.prisma.accessLog.findFirst({
+        where: {
+          propertyId: dto.propertyId,
+          type: AccessType.EXIT,
+          createdAt: { gt: lastEntry.createdAt },
+          ...(dto.residentId ? { residentId: dto.residentId } : { visitorId: dto.visitorId }),
+        },
+      });
+
+      if (hasOpenExit) {
+        throw new BadRequestException(
+          'La persona ya tiene una salida registrada después de su última entrada',
+        );
+      }
+    }
+
     return this.prisma.accessLog.create({
       data: { ...dto, guardId },
       include: INCLUDE_ACCESS_LOG,
@@ -64,5 +103,27 @@ export class AccessLogsService {
     });
     if (!log) throw new NotFoundException('Registro de acceso no encontrado');
     return log;
+  }
+
+  async findPeopleInside(propertyId: string) {
+    const logs = await this.prisma.accessLog.findMany({
+      where: { propertyId },
+      include: INCLUDE_ACCESS_LOG,
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const latestByPerson = new Map<string, (typeof logs)[0]>();
+
+    for (const log of logs) {
+      const personKey = log.residentId ?? log.visitorId;
+      if (!personKey) continue;
+      if (!latestByPerson.has(personKey)) {
+        latestByPerson.set(personKey, log);
+      }
+    }
+
+    return Array.from(latestByPerson.values()).filter(
+      log => log.type === AccessType.ENTRY,
+    );
   }
 }

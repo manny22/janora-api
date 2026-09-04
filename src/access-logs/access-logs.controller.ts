@@ -38,6 +38,14 @@ export class AccessLogsController {
     return this.accessLogsService.findAll({ propertyId, type, visitorId, residentId });
   }
 
+  @Get('inside')
+  @Roles(Role.SUPER_ADMIN, Role.PROPERTY_ADMIN, Role.SECURITY_GUARD, Role.RESIDENT)
+  @ApiOperation({ summary: 'Listar personas actualmente dentro de la propiedad' })
+  @ApiQuery({ name: 'propertyId', required: true })
+  findPeopleInside(@Query('propertyId') propertyId: string) {
+    return this.accessLogsService.findPeopleInside(propertyId);
+  }
+
   @Get(':id')
   @Roles(Role.SUPER_ADMIN, Role.PROPERTY_ADMIN, Role.SECURITY_GUARD, Role.RESIDENT)
   @ApiOperation({ summary: 'Obtener registro de acceso por ID' })
